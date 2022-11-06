@@ -29,7 +29,7 @@ public class Server implements KVPaxosRMI {
     Map<String, Integer> kvStore;
     Integer logSequence;
 
-
+    // TODO: Duplicate detection (piggyback??)
     public Server(String[] servers, int[] ports, int me){
         this.me = me;
         this.servers = servers;
@@ -53,6 +53,7 @@ public class Server implements KVPaxosRMI {
 
 
     // RMI handlers
+    // TODO: timeout to wait for consensus to be arrived at??
     public Response Get(Request request){
         // Your code here
 
@@ -89,6 +90,7 @@ public class Server implements KVPaxosRMI {
 
     }
 
+    // TODO: timeout to wait for consensus to be arrived at??
     public Response Put(Request request){
         // Your code here
         for(; logSequence<=px.Max(); logSequence++) {

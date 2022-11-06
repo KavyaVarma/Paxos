@@ -150,6 +150,8 @@ public class Paxos implements PaxosRMI, Runnable{
             this.seqHighestAcceptedObjectMap.put(seq, null);
         }
 
+        freeTillMin();
+
         Thread t_seq = new Thread(this);
 
         this.mutex.lock();
@@ -168,9 +170,9 @@ public class Paxos implements PaxosRMI, Runnable{
         
         System.out.printf("Running sequence %d in peer %d\n", sequence, this.me);
 
+        // TODO: backoff??
         while(this.seqStateMap.get(sequence) != State.Decided) {
             
-            // TODO: Do we need to set the prepared map here ??
             Integer proposalId = (this.seqHighestPreparedMap.get(sequence) - (this.seqHighestPreparedMap.get(sequence) % this.peers.length)) 
                 + this.peers.length + this.me;
             this.seqHighestPreparedMap.put(sequence, proposalId);
@@ -313,6 +315,25 @@ public class Paxos implements PaxosRMI, Runnable{
         );
     }
 
+    /*
+     * Function that removes unnecessary mappings corresponding to sequences that are below the min value
+     */
+    private void freeTillMin() {
+        int min = Min();
+        
+        this.seqStateMap.keySet().stream().filter(
+            key -> key < min
+        ).forEach(
+            key -> {
+                seqStateMap.remove(key);
+                seqDecidedValueMap.remove(key);
+                seqHighestPreparedMap.remove(key);
+                seqHighestAcceptedIdMap.remove(key);
+                seqHighestAcceptedObjectMap.remove(key);
+            }
+        );
+    }
+
     /**
      * The application on this machine is done with
      * all instances <= seq.
@@ -331,6 +352,9 @@ public class Paxos implements PaxosRMI, Runnable{
      */
     public int Max(){
         // Your code here
+        if(seqStateMap.keySet().size() == 0) {
+            return -1;
+        }
         return Collections.max(this.seqStateMap.keySet());
     }
 
