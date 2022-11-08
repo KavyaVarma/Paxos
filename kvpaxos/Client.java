@@ -69,7 +69,7 @@ public class Client {
         // Your code here
         Request request = new Request(key, value);
         Response response = null;
-        // TODO: do we need a while loop executing here??
+        
         while(response ==  null) {
             for(int i=0; i<this.ports.length; i++) {
                 response = Call("Put", request, i);

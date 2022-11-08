@@ -29,7 +29,6 @@ public class Response implements Serializable {
         this.done = done;
     }
 
-    // TODO: make this code nice
     public String getResponseType() {
         return this.responseType;
     }

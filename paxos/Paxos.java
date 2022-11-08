@@ -164,9 +164,6 @@ public class Paxos implements PaxosRMI, Runnable {
         Object value = this.hopefullyConcurrentValue;
         this.mutex.unlock();
 
-        System.out.printf("Running sequence %d in peer %d\n", sequence, this.me);
-
-        // TODO: backoff??
         while (this.seqStateMap.get(sequence) != State.Decided) {
 
             Integer proposalId = (this.seqHighestPreparedMap.get(sequence)
@@ -283,7 +280,6 @@ public class Paxos implements PaxosRMI, Runnable {
         int sequence = request.getSequence();
         int requestProposalId = request.getProposalId();
 
-        // TODO: should it be greater than ??
         if (requestProposalId == this.seqHighestPreparedMap.get(sequence)) {
             this.seqHighestPreparedMap.put(sequence, requestProposalId);
             this.seqHighestAcceptedIdMap.put(sequence, requestProposalId);
