@@ -1,4 +1,5 @@
 package paxos;
+
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
 import java.rmi.registry.Registry;
@@ -13,7 +14,7 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * This class is the main class you need to implement paxos instances.
  */
-public class Paxos implements PaxosRMI, Runnable{
+public class Paxos implements PaxosRMI, Runnable {
 
     // Constant Strings
     public static final String PREPARE_OKAY = "PREPARE_OKAY";
@@ -21,7 +22,6 @@ public class Paxos implements PaxosRMI, Runnable{
     public static final String ACCEPT_OKAY = "ACCEPT_OKAY";
     public static final String ACCEPT_REJECT = "ACCEPT_REJECT";
     public static final String DECIDED_OKAY = "DECIDED_OKAY";
-
 
     ReentrantLock mutex;
     String[] peers; // hostname
@@ -37,7 +37,7 @@ public class Paxos implements PaxosRMI, Runnable{
     // Your data here
     int hopefullyConcurrentSequence;
     Object hopefullyConcurrentValue;
-    
+
     // sequence -> state
     HashMap<Integer, State> seqStateMap = new HashMap<>();
 
@@ -54,13 +54,12 @@ public class Paxos implements PaxosRMI, Runnable{
 
     List<Integer> doneArray;
 
-
     /**
      * Call the constructor to create a Paxos peer.
      * The hostnames of all the Paxos peers (including this one)
      * are in peers[]. The ports are in ports[].
      */
-    public Paxos(int me, String[] peers, int[] ports){
+    public Paxos(int me, String[] peers, int[] ports) {
 
         this.me = me;
         this.peers = peers;
@@ -69,23 +68,21 @@ public class Paxos implements PaxosRMI, Runnable{
         this.dead = new AtomicBoolean(false);
         this.unreliable = new AtomicBoolean(false);
         this.doneArray = new ArrayList<Integer>();
-        for(int i = 0; i < peers.length; ++i)
+        for (int i = 0; i < peers.length; ++i)
             this.doneArray.add(-1);
 
         // Your initialization code here
-        
 
         // register peers, do not modify this part
-        try{
+        try {
             System.setProperty("java.rmi.server.hostname", this.peers[this.me]);
             registry = LocateRegistry.createRegistry(this.ports[this.me]);
             stub = (PaxosRMI) UnicastRemoteObject.exportObject(this, this.ports[this.me]);
             registry.rebind("Paxos", stub);
-        } catch(Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
-
 
     /**
      * Call() sends an RMI to the RMI handler on server with
@@ -100,27 +97,26 @@ public class Paxos implements PaxosRMI, Runnable{
      * Please use Call() to send all RMIs and please don't change
      * this function.
      */
-    public Response Call(String rmi, Request req, int id){
+    public Response Call(String rmi, Request req, int id) {
         Response callReply = null;
 
         PaxosRMI stub;
-        try{
-            Registry registry=LocateRegistry.getRegistry(this.ports[id]);
-            stub=(PaxosRMI) registry.lookup("Paxos");
-            if(rmi.equals("Prepare"))
+        try {
+            Registry registry = LocateRegistry.getRegistry(this.ports[id]);
+            stub = (PaxosRMI) registry.lookup("Paxos");
+            if (rmi.equals("Prepare"))
                 callReply = stub.Prepare(req);
-            else if(rmi.equals("Accept"))
+            else if (rmi.equals("Accept"))
                 callReply = stub.Accept(req);
-            else if(rmi.equals("Decide"))
+            else if (rmi.equals("Decide"))
                 callReply = stub.Decide(req);
             else
                 System.out.println("Wrong parameters!");
-        } catch(Exception e){
+        } catch (Exception e) {
             return null;
         }
         return callReply;
     }
-
 
     /**
      * The application wants Paxos to start agreement on instance seq,
@@ -139,10 +135,10 @@ public class Paxos implements PaxosRMI, Runnable{
      * The application will call Status() to find out if/when agreement
      * is reached.
      */
-    public void Start(int seq, Object value){
+    public void Start(int seq, Object value) {
         // Your code here
 
-        if(!this.seqHighestPreparedMap.containsKey(seq)) {
+        if (!this.seqHighestPreparedMap.containsKey(seq)) {
             this.seqStateMap.put(seq, State.Pending);
             this.seqDecidedValueMap.put(seq, null);
             this.seqHighestPreparedMap.put(seq, 0);
@@ -162,176 +158,175 @@ public class Paxos implements PaxosRMI, Runnable{
     }
 
     @Override
-    public void run(){
-        //Your code here
+    public void run() {
+        // Your code here
         Integer sequence = this.hopefullyConcurrentSequence;
         Object value = this.hopefullyConcurrentValue;
         this.mutex.unlock();
-        
+
         System.out.printf("Running sequence %d in peer %d\n", sequence, this.me);
 
         // TODO: backoff??
-        while(this.seqStateMap.get(sequence) != State.Decided) {
-            
-            Integer proposalId = (this.seqHighestPreparedMap.get(sequence) - (this.seqHighestPreparedMap.get(sequence) % this.peers.length)) 
-                + this.peers.length + this.me;
+        while (this.seqStateMap.get(sequence) != State.Decided) {
+
+            Integer proposalId = (this.seqHighestPreparedMap.get(sequence)
+                    - (this.seqHighestPreparedMap.get(sequence) % this.peers.length))
+                    + this.peers.length + this.me;
             this.seqHighestPreparedMap.put(sequence, proposalId);
 
             Request request = new Request(sequence, proposalId, value);
             Integer okayed = 1;
             Integer highestAcceptedId = -1;
             Object highestAcceptedValue = value;
-            Integer majority = (int)(this.peers.length/2)+1;
-            for (int i=0; i<this.peers.length; i++) {
-                if( i == this.me )
+            Integer majority = (int) (this.peers.length / 2) + 1;
+            for (int i = 0; i < this.peers.length; i++) {
+                if (i == this.me)
                     continue;
                 Response response = this.Call("Prepare", request, i);
-                if(response == null) 
+                if (response == null)
                     continue;
-                if(response.getResponseType().equalsIgnoreCase(PREPARE_OKAY)){
+                if (response.getResponseType().equalsIgnoreCase(PREPARE_OKAY)) {
                     this.doneArray.set(i, response.getDone());
                     okayed++;
-                    Optional<Integer> optResponseHighestAcceptedId = Optional.ofNullable(response.getAcceptedProposalId());
-                    if(optResponseHighestAcceptedId.isPresent()) {
+                    Optional<Integer> optResponseHighestAcceptedId = Optional
+                            .ofNullable(response.getAcceptedProposalId());
+                    if (optResponseHighestAcceptedId.isPresent()) {
                         Integer responseHighestAcceptedId = optResponseHighestAcceptedId.get();
-                        if(responseHighestAcceptedId > highestAcceptedId) {
+                        if (responseHighestAcceptedId > highestAcceptedId) {
                             highestAcceptedId = responseHighestAcceptedId;
                             highestAcceptedValue = response.getAcceptedValue();
                         }
                     }
                 }
 
-                if(okayed >= majority){
+                if (okayed >= majority) {
                     break;
-                }             
+                }
             }
 
-            if(okayed < majority) // did not get majority, try proposing again
+            if (okayed < majority) // did not get majority, try proposing again
                 continue;
-            okayed=1;
+            okayed = 1;
             request = new Request(sequence, proposalId, highestAcceptedValue);
-            for (int i=0; i<this.peers.length; i++) {      
-                if( i == this.me )
-                    continue;          
+            for (int i = 0; i < this.peers.length; i++) {
+                if (i == this.me)
+                    continue;
                 Response response = this.Call("Accept", request, i);
-                if(response == null) 
+                if (response == null)
                     continue;
                 this.doneArray.set(i, response.getDone());
-                if(response.getResponseType().equalsIgnoreCase(ACCEPT_OKAY)){
+                if (response.getResponseType().equalsIgnoreCase(ACCEPT_OKAY)) {
                     okayed++;
                 }
-                if(okayed >= majority)
+                if (okayed >= majority)
                     break;
             }
 
-            if(okayed < majority)
+            if (okayed < majority)
                 continue;
 
             this.seqDecidedValueMap.put(sequence, highestAcceptedValue);
             this.seqStateMap.put(sequence, State.Decided);
-            
-            for (int i=0; i<this.peers.length; i++) {   
-                if( i == this.me ) 
+
+            for (int i = 0; i < this.peers.length; i++) {
+                if (i == this.me)
                     continue;
                 Response response = this.Call("Decide", request, i);
-                if(response != null)
+                if (response != null)
                     this.doneArray.set(i, response.getDone());
             }
         }
     }
 
     // RMI handler
-    public Response Prepare(Request request){
+    public Response Prepare(Request request) {
         // your code here
 
         int sequence = request.getSequence();
 
         // If sequence not seen before - initialise the maps
-        if(!this.seqHighestPreparedMap.containsKey(sequence)) {
+        if (!this.seqHighestPreparedMap.containsKey(sequence)) {
             this.seqStateMap.put(sequence, State.Pending);
             this.seqDecidedValueMap.put(sequence, null);
             this.seqHighestPreparedMap.put(sequence, -1);
-            this.seqHighestAcceptedIdMap.put(sequence, null); 
+            this.seqHighestAcceptedIdMap.put(sequence, null);
             this.seqHighestAcceptedObjectMap.put(sequence, null);
 
         }
-        
-        // If the request proposal ID is equal to the highest seen so far -> we will accept it since it is our own
-        // If request proposal ID is greater than any seen so far -> send a prepare_okay, accepted_proposal_id, accepted_value
-        if(request.getProposalId() >= this.seqHighestPreparedMap.get(sequence)) {            
+
+        // If the request proposal ID is equal to the highest seen so far -> we will
+        // accept it since it is our own
+        // If request proposal ID is greater than any seen so far -> send a
+        // prepare_okay, accepted_proposal_id, accepted_value
+        if (request.getProposalId() >= this.seqHighestPreparedMap.get(sequence)) {
             this.seqHighestPreparedMap.put(sequence, request.getProposalId());
             return new Response(
-                PREPARE_OKAY, 
-                this.seqHighestAcceptedIdMap.get(sequence), 
-                this.seqHighestAcceptedObjectMap.get(sequence),
-                this.doneArray.get(this.me)
-            );
+                    PREPARE_OKAY,
+                    this.seqHighestAcceptedIdMap.get(sequence),
+                    this.seqHighestAcceptedObjectMap.get(sequence),
+                    this.doneArray.get(this.me));
         }
 
         // If request proposal ID is lesser than maximum seen so far -> prepare reject
         else {
             return new Response(
-                PREPARE_REJECT,
-                this.doneArray.get(this.me)
-            );
+                    PREPARE_REJECT,
+                    this.doneArray.get(this.me));
         }
     }
 
-    public Response Accept(Request request){
+    public Response Accept(Request request) {
         // your code here
-        
-        // If request proposal ID is greater than or equal to any seen so far -> accept_okay
+
+        // If request proposal ID is greater than or equal to any seen so far ->
+        // accept_okay
         int sequence = request.getSequence();
         int requestProposalId = request.getProposalId();
 
         // TODO: should it be greater than ??
-        if(requestProposalId == this.seqHighestPreparedMap.get(sequence)) {
+        if (requestProposalId == this.seqHighestPreparedMap.get(sequence)) {
             this.seqHighestPreparedMap.put(sequence, requestProposalId);
             this.seqHighestAcceptedIdMap.put(sequence, requestProposalId);
             this.seqHighestAcceptedObjectMap.put(sequence, request.getValue());
             return new Response(
-                ACCEPT_OKAY,
-                this.doneArray.get(this.me)
-            );
-        }        
+                    ACCEPT_OKAY,
+                    this.doneArray.get(this.me));
+        }
         // If request proposal ID is lesser than any seen so far -> accept_reject
         else {
             return new Response(
-                ACCEPT_REJECT,
-                this.doneArray.get(this.me)
-            );
+                    ACCEPT_REJECT,
+                    this.doneArray.get(this.me));
         }
 
     }
 
-    public Response Decide(Request request){
+    public Response Decide(Request request) {
         // your code here
         this.seqDecidedValueMap.put(request.getSequence(), request.getValue());
-        this.seqStateMap.put(request.getSequence(),State.Decided);
+        this.seqStateMap.put(request.getSequence(), State.Decided);
 
         return new Response(
-            DECIDED_OKAY,
-            this.doneArray.get(this.me)
-        );
+                DECIDED_OKAY,
+                this.doneArray.get(this.me));
     }
 
     /*
-     * Function that removes unnecessary mappings corresponding to sequences that are below the min value
+     * Function that removes unnecessary mappings corresponding to sequences that
+     * are below the min value
      */
     private void freeTillMin() {
         int min = Min();
-        
+
         this.seqStateMap.keySet().stream().filter(
-            key -> key < min
-        ).forEach(
-            key -> {
-                seqStateMap.remove(key);
-                seqDecidedValueMap.remove(key);
-                seqHighestPreparedMap.remove(key);
-                seqHighestAcceptedIdMap.remove(key);
-                seqHighestAcceptedObjectMap.remove(key);
-            }
-        );
+                key -> key < min).forEach(
+                        key -> {
+                            seqStateMap.remove(key);
+                            seqDecidedValueMap.remove(key);
+                            seqHighestPreparedMap.remove(key);
+                            seqHighestAcceptedIdMap.remove(key);
+                            seqHighestAcceptedObjectMap.remove(key);
+                        });
     }
 
     /**
@@ -342,7 +337,7 @@ public class Paxos implements PaxosRMI, Runnable{
      */
     public void Done(int seq) {
         // Your code here
-        doneArray.set(this.me, seq);            
+        doneArray.set(this.me, seq);
     }
 
     /**
@@ -350,9 +345,9 @@ public class Paxos implements PaxosRMI, Runnable{
      * highest instance sequence known to
      * this peer.
      */
-    public int Max(){
+    public int Max() {
         // Your code here
-        if(seqStateMap.keySet().size() == 0) {
+        if (seqStateMap.keySet().size() == 0) {
             return -1;
         }
         return Collections.max(this.seqStateMap.keySet());
@@ -363,19 +358,19 @@ public class Paxos implements PaxosRMI, Runnable{
      * where z_i is the highest number ever passed
      * to Done() on peer i. A peers z_i is -1 if it has
      * never called Done().
-
+     * 
      * Paxos is required to have forgotten all information
      * about any instances it knows that are < Min().
      * The point is to free up memory in long-running
      * Paxos-based servers.
-
+     * 
      * Paxos peers need to exchange their highest Done()
      * arguments in order to implement Min(). These
      * exchanges can be piggybacked on ordinary Paxos
      * agreement protocol messages, so it is OK if one
      * peers Min does not reflect another Peers Done()
      * until after the next instance is agreed to.
-
+     * 
      * The fact that Min() is defined as a minimum over
      * all Paxos peers means that Min() cannot increase until
      * all peers have been heard from. So if a peer is dead
@@ -386,9 +381,9 @@ public class Paxos implements PaxosRMI, Runnable{
      * missed -- the other peers therefore cannot forget these
      * instances.
      */
-    public int Min(){
+    public int Min() {
         // Your code here
-        return Collections.min(this.doneArray)+1;
+        return Collections.min(this.doneArray) + 1;
     }
 
     /**
@@ -398,19 +393,22 @@ public class Paxos implements PaxosRMI, Runnable{
      * should just inspect the local peer state;
      * it should not contact other Paxos peers.
      */
-    public retStatus Status(int seq){
+    public retStatus Status(int seq) {
         // Your code here
+        if (seq < this.Min())
+            return new retStatus(State.Forgotten, null);
+
         return new retStatus(this.seqStateMap.get(seq), this.seqDecidedValueMap.get(seq));
     }
 
     /**
      * helper class for Status() return
      */
-    public class retStatus{
+    public class retStatus {
         public State state;
         public Object v;
 
-        public retStatus(State state, Object v){
+        public retStatus(State state, Object v) {
             this.state = state;
             this.v = v;
         }
@@ -421,26 +419,26 @@ public class Paxos implements PaxosRMI, Runnable{
      * For testing.
      * Please don't change these four functions.
      */
-    public void Kill(){
+    public void Kill() {
         this.dead.getAndSet(true);
-        if(this.registry != null){
+        if (this.registry != null) {
             try {
                 UnicastRemoteObject.unexportObject(this.registry, true);
-            } catch(Exception e){
+            } catch (Exception e) {
                 System.out.println("None reference");
             }
         }
     }
 
-    public boolean isDead(){
+    public boolean isDead() {
         return this.dead.get();
     }
 
-    public void setUnreliable(){
+    public void setUnreliable() {
         this.unreliable.getAndSet(true);
     }
 
-    public boolean isunreliable(){
+    public boolean isunreliable() {
         return this.unreliable.get();
     }
 }
